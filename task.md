@@ -14,12 +14,12 @@ Create a GitHub Actions CI workflow for the journal project that runs automated 
 ## Implementation Plan
 
 - [x] Create rust-toolchain.toml in project root to pin Rust 1.88.0
-- [ ] Create .github/workflows/ directory structure
-- [ ] Create ci.yml workflow file with build_and_test job
-- [ ] Configure workflow triggers for push and PR on main branch
-- [ ] Set up mise installation and tool management steps
-- [ ] Configure Rust component installation (rustfmt, clippy)
-- [ ] Add make targets execution: fmt, lint, test, build
+- [x] Create .github/workflows/ directory structure
+- [x] Create ci.yml workflow file with build_and_test job
+- [x] Configure workflow triggers for push and PR on main branch
+- [x] Set up mise installation and tool management steps
+- [x] Configure Rust component installation (rustfmt, clippy)
+- [x] Add make targets execution: fmt, lint, test, build
 - [ ] Test workflow locally using act or by pushing to a branch
 - [ ] Verify all checks pass and workflow runs successfully
 
