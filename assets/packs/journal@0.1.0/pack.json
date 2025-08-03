@@ -1,0 +1,17 @@
+{
+  "name": "journal",
+  "version": "0.1.0",
+  "protocolVersion": "0.1.0",
+  "types": [
+    {
+      "id": "journal.session",
+      "version": "1.0.0",
+      "schema": "types/session.schema.json"
+    },
+    {
+      "id": "journal.entry", 
+      "version": "1.0.0",
+      "schema": "types/entry.schema.json"
+    }
+  ]
+}

@@ -2,11 +2,15 @@ use crate::state::{JournalSession, Speaker};
 use aethel_core::{apply_patch, read_doc, Patch, PatchMode};
 use anyhow::{Context, Result};
 use chrono::Utc;
-use serde_json::{json, Value};
+use include_dir::{include_dir, Dir};
+use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tokio::fs;
 use uuid::Uuid;
+
+// Embed the journal pack assets at compile time
+static JOURNAL_PACK: Dir = include_dir!("assets/packs/journal@0.1.0");
 
 #[derive(Debug, Clone)]
 pub enum Effect {
@@ -382,18 +386,17 @@ impl EffectRunner {
     }
 
     async fn install_journal_pack(&self, vault_path: &Path) -> Result<()> {
-        // Create the journal pack definition
-        let pack_definition = create_journal_pack_definition();
+        let pack_path = vault_path.join("packs/journal@0.1.0");
 
-        let pack_path = vault_path.join(".aethel/packs/journal@0.1.0");
+        // Create the pack directory first
         fs::create_dir_all(&pack_path)
             .await
             .context("Failed to create pack directory")?;
 
-        let pack_file = pack_path.join("pack.json");
-        fs::write(&pack_file, serde_json::to_string_pretty(&pack_definition)?)
-            .await
-            .context("Failed to write pack definition")?;
+        // Extract all files from the embedded pack directory
+        JOURNAL_PACK
+            .extract(&pack_path)
+            .context("Failed to extract journal pack files")?;
 
         Ok(())
     }
@@ -439,26 +442,6 @@ fn extract_energy_from_session(session: &JournalSession) -> Option<String> {
         }
     }
     None
-}
-
-fn create_journal_pack_definition() -> Value {
-    json!({
-        "name": "journal",
-        "version": "0.1.0",
-        "protocolVersion": "0.1.0",
-        "types": [
-            {
-                "id": "journal.session",
-                "version": "1.0.0",
-                "schema": "types/session.schema.json"
-            },
-            {
-                "id": "journal.entry",
-                "version": "1.0.0",
-                "schema": "types/entry.schema.json"
-            }
-        ]
-    })
 }
 
 #[cfg(test)]
