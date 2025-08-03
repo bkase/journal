@@ -10,12 +10,6 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub enum Effect {
-    ShowModePrompt,
-    ShowQuestion(String),
-    ShowCoachResponse(String),
-    ShowMessage(String),
-    ShowError(String),
-    PromptForUserInput,
     SaveSession(JournalSession),
     LoadSession(Uuid),
     ClearIndex,
@@ -26,7 +20,6 @@ pub enum Effect {
     GenerateAnalysis {
         session: JournalSession,
     },
-    ShowAnalysis(String),
     CreateFinalEntry {
         session: JournalSession,
         entry_id: Uuid,
@@ -46,30 +39,6 @@ impl EffectRunner {
 
     pub async fn run_effect(&self, effect: Effect) -> Result<Option<crate::action::Action>> {
         match effect {
-            Effect::ShowModePrompt => {
-                self.show_mode_prompt().await;
-                Ok(None)
-            }
-            Effect::ShowQuestion(question) => {
-                self.show_question(&question).await;
-                Ok(None)
-            }
-            Effect::ShowCoachResponse(response) => {
-                self.show_coach_response(&response).await;
-                Ok(None)
-            }
-            Effect::ShowMessage(message) => {
-                self.show_message(&message).await;
-                Ok(None)
-            }
-            Effect::ShowError(error) => {
-                self.show_error(&error).await;
-                Ok(None)
-            }
-            Effect::PromptForUserInput => {
-                self.prompt_for_user_input().await;
-                Ok(None)
-            }
             Effect::SaveSession(session) => {
                 self.save_session(&session).await?;
                 Ok(None)
@@ -98,62 +67,18 @@ impl EffectRunner {
                 let analysis = self.generate_analysis(&session).await?;
                 Ok(Some(crate::action::Action::AnalysisComplete(analysis)))
             }
-            Effect::ShowAnalysis(analysis) => {
-                self.show_analysis(&analysis).await;
-                Ok(None)
-            }
-            Effect::CreateFinalEntry {
-                session,
-                entry_id,
-                analysis,
-            } => {
-                let entry_path = self
-                    .create_final_entry(&session, entry_id, &analysis)
-                    .await?;
-                self.show_completion_message(&entry_path).await;
-                Ok(Some(crate::action::Action::Stop))
+            Effect::CreateFinalEntry { session, entry_id, analysis } => {
+                let entry_path = self.create_final_entry(&session, entry_id, &analysis).await?;
+                Ok(Some(crate::action::Action::FinalEntryCreated {
+                    entry_path,
+                    analysis,
+                }))
             }
             Effect::InitializeVault(path) => {
                 self.initialize_vault(&path).await?;
                 Ok(None)
             }
         }
-    }
-
-    async fn show_mode_prompt(&self) {
-        println!("\n🌅 Welcome to your journal!");
-        println!("What kind of session would you like to start?");
-        println!("  (m)orning - Start your day with intention");
-        println!("  (e)vening - Reflect on your day");
-        print!("\nChoice (m/e): ");
-        use std::io::{self, Write};
-        io::stdout().flush().unwrap();
-    }
-
-    async fn show_question(&self, question: &str) {
-        println!("\n💭 {question}");
-        print!("\n> ");
-        use std::io::{self, Write};
-        io::stdout().flush().unwrap();
-    }
-
-    async fn show_coach_response(&self, response: &str) {
-        println!("\n🧘 Coach: {response}");
-        println!("\n⏸️  Press (s)top to end session or continue sharing...");
-    }
-
-    async fn show_message(&self, message: &str) {
-        println!("\n✨ {message}");
-    }
-
-    async fn show_error(&self, error: &str) {
-        eprintln!("\n❌ Error: {error}");
-    }
-
-    async fn prompt_for_user_input(&self) {
-        print!("\n> ");
-        use std::io::{self, Write};
-        io::stdout().flush().unwrap();
     }
 
     fn ensure_vault_exists(&self) -> Result<()> {
@@ -383,19 +308,6 @@ impl EffectRunner {
         }
 
         Ok(analysis)
-    }
-
-    async fn show_analysis(&self, analysis: &str) {
-        println!("\n🧠 **AI Analysis of Your Session**");
-        println!("{}", "=".repeat(50));
-        println!("{analysis}");
-        println!("{}", "=".repeat(50));
-    }
-
-    async fn show_completion_message(&self, entry_path: &str) {
-        println!("\n✨ **Session Complete!**");
-        println!("📝 Your journal entry has been saved to: {entry_path}");
-        println!("🔍 The AI analysis above has been included in your entry for future reference.");
     }
 
     async fn create_final_entry(

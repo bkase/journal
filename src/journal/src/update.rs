@@ -7,7 +7,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
     match (state, action) {
         // Starting a new journal session
         (State::Initializing, Action::Start) => {
-            (State::PromptingForNew, vec![Effect::ShowModePrompt])
+            (State::PromptingForNew, vec![])
         }
 
         // Resuming an existing session
@@ -35,10 +35,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
             // The UpdateIndex effect will need to be triggered after the document is saved
             (
                 State::InSession(session.clone()),
-                vec![
-                    Effect::SaveSession(session.clone()),
-                    Effect::ShowQuestion(initial_questions[0].to_string()),
-                ],
+                vec![Effect::SaveSession(session.clone())],
             )
         }
 
@@ -63,11 +60,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
 
             (
                 State::InSession(session.clone()),
-                vec![
-                    Effect::SaveSession(session.clone()),
-                    Effect::ShowCoachResponse(session.transcript.last().unwrap().content.clone()),
-                    Effect::PromptForUserInput,
-                ],
+                vec![Effect::SaveSession(session.clone())],
             )
         }
 
@@ -77,10 +70,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
             let questions = session.mode.get_initial_questions();
 
             if user_responses < questions.len() {
-                (
-                    State::InSession(session),
-                    vec![Effect::ShowQuestion(questions[user_responses].to_string())],
-                )
+                (State::InSession(session), vec![])
             } else {
                 (State::InSession(session), vec![Effect::PromptForUserInput])
             }
@@ -105,19 +95,16 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
         (State::Analyzing(session), Action::AnalysisComplete(analysis)) => {
             let entry_id = Uuid::new_v4();
             (
-                State::Done(WriteResult {
-                    entry_id,
-                    entry_path: format!("docs/{entry_id}.md"),
-                    session_completed: true,
-                }),
+                State::AnalysisReady { 
+                    session: session.clone(), 
+                    analysis: analysis.clone() 
+                },
                 vec![
-                    Effect::ShowAnalysis(analysis.clone()),
                     Effect::CreateFinalEntry {
                         session,
                         entry_id,
                         analysis,
                     },
-                    Effect::ClearIndex,
                 ],
             )
         }
@@ -131,13 +118,22 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
                     entry_path: format!("entry_{entry_id}.md"),
                     session_completed: true,
                 }),
-                vec![
-                    Effect::ClearIndex,
-                    Effect::ShowMessage("Journal entry created successfully!".to_string()),
-                ],
+                vec![Effect::ClearIndex],
             )
         }
 
+        // Final entry created successfully
+        (State::AnalysisReady { .. }, Action::FinalEntryCreated { entry_path, .. }) => {
+            let entry_id = Uuid::new_v4();
+            (
+                State::Done(WriteResult {
+                    entry_id,
+                    entry_path,
+                    session_completed: true,
+                }),
+                vec![Effect::ClearIndex],
+            )
+        }
         // Session loaded successfully (from Resume)
         (State::Initializing, Action::UserResponse(_)) => {
             // This would happen after a successful session load
@@ -152,10 +148,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
         // Invalid state transitions
         (state, action) => {
             let error_msg = format!("Invalid action {action:?} for state {state:?}");
-            (
-                State::Error(error_msg.clone()),
-                vec![Effect::ShowError(error_msg)],
-            )
+            (State::Error(error_msg), vec![])
         }
     }
 }
@@ -170,8 +163,7 @@ mod tests {
         let (new_state, effects) = update(State::Initializing, Action::Start);
 
         assert_eq!(new_state, State::PromptingForNew);
-        assert_eq!(effects.len(), 1);
-        assert!(matches!(effects[0], Effect::ShowModePrompt));
+        assert_eq!(effects.len(), 0);
     }
 
     #[test]
@@ -182,9 +174,9 @@ mod tests {
         );
 
         assert!(matches!(new_state, State::InSession(_)));
-        assert_eq!(effects.len(), 2);
-        // Index update is now handled after session save
-        assert!(matches!(effects[1], Effect::ShowQuestion(_)));
+        assert_eq!(effects.len(), 1);
+        // Only SaveSession effect
+        assert!(matches!(effects[0], Effect::SaveSession(_)));
     }
 
     #[test]
@@ -237,7 +229,6 @@ mod tests {
         );
 
         assert!(matches!(new_state, State::Error(_)));
-        assert_eq!(effects.len(), 1);
-        assert!(matches!(effects[0], Effect::ShowError(_)));
+        assert_eq!(effects.len(), 0);
     }
 }
