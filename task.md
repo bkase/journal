@@ -13,7 +13,7 @@ Create a GitHub Actions CI workflow for the journal project that runs automated 
 
 ## Implementation Plan
 
-- [ ] Create rust-toolchain.toml in project root to pin Rust 1.88.0
+- [x] Create rust-toolchain.toml in project root to pin Rust 1.88.0
 - [ ] Create .github/workflows/ directory structure
 - [ ] Create ci.yml workflow file with build_and_test job
 - [ ] Configure workflow triggers for push and PR on main branch
