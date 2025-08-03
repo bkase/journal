@@ -1,6 +1,4 @@
-use crate::state::{
-    JournalSession, Speaker, State, WriteResult,
-};
+use crate::state::{JournalSession, Speaker, State, WriteResult};
 
 /// Main view function that renders the current state
 pub fn view(state: &State) {

@@ -63,9 +63,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
         }
 
         // Moving to next question
-        (State::InSession(session), Action::NextQuestion) => {
-            (State::InSession(session), vec![])
-        }
+        (State::InSession(session), Action::NextQuestion) => (State::InSession(session), vec![]),
 
         // Stopping session (user pressed 's')
         (State::InSession(mut session), Action::Stop) => {
