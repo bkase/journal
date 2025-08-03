@@ -22,3 +22,4 @@ vault/
 # Temporary files
 *.tmp
 *.temp
+/todos/worktrees/
