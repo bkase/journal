@@ -184,7 +184,8 @@ impl JournalApp {
                     return Err(Error::system(format!(
                         "Stuck in non-interactive state: {:?}",
                         self.state
-                    )).into());
+                    ))
+                    .into());
                 }
             }
         }
@@ -248,9 +249,10 @@ impl JournalApp {
                                     e
                                 );
                                 let fallback_action = Action::AnalysisComplete(fallback_analysis);
-                                let (next_state, next_effects) = update::update(self.state.clone(), fallback_action);
+                                let (next_state, next_effects) =
+                                    update::update(self.state.clone(), fallback_action);
                                 self.state = next_state;
-                                
+
                                 // Execute any additional effects from the fallback
                                 for next_effect in next_effects {
                                     match self.effect_runner.run_effect(next_effect).await {
@@ -278,7 +280,9 @@ impl JournalApp {
                         }
                         Error::Aethel { .. } | Error::Io { .. } | Error::Json { .. } => {
                             eprintln!("\n❌ System Error: {}", e);
-                            eprintln!("⚠️  This is a system-level error that may require attention.");
+                            eprintln!(
+                                "⚠️  This is a system-level error that may require attention."
+                            );
                         }
                         Error::Config(_) => {
                             eprintln!("\n❌ Configuration Error: {}", e);

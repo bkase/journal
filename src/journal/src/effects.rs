@@ -170,8 +170,9 @@ impl EffectRunner {
             ),
         };
 
-        let write_result = apply_patch(&self.vault_path, patch)
-            .map_err(|e| Error::vault_operation(format!("Failed to save session document: {}", e)))?;
+        let write_result = apply_patch(&self.vault_path, patch).map_err(|e| {
+            Error::vault_operation(format!("Failed to save session document: {}", e))
+        })?;
         // Update the index to track this session as active
         self.update_index(write_result.uuid).await?;
 
@@ -182,14 +183,14 @@ impl EffectRunner {
         self.ensure_vault_exists()?;
 
         // Try to read the session document by UUID
-        let doc =
-            read_doc(&self.vault_path, &session_id)
-                .map_err(|e| Error::session_not_found(format!("Failed to load session {}: {}", session_id, e)))?;
+        let doc = read_doc(&self.vault_path, &session_id).map_err(|e| {
+            Error::session_not_found(format!("Failed to load session {}: {}", session_id, e))
+        })?;
 
         // Parse the transcript from the body
-        let transcript =
-            serde_json::from_str(&doc.body)
-                .map_err(|e| Error::invalid_session_state(format!("Failed to parse session transcript: {}", e)))?;
+        let transcript = serde_json::from_str(&doc.body).map_err(|e| {
+            Error::invalid_session_state(format!("Failed to parse session transcript: {}", e))
+        })?;
 
         // Extract session data from frontmatter
         let session_data = &doc.frontmatter_extra;
@@ -275,11 +276,16 @@ impl EffectRunner {
             .arg("-p")
             .arg(&prompt)
             .output()
-            .map_err(|e| Error::claude_execution(format!("Failed to execute claude command: {}", e)))?;
+            .map_err(|e| {
+                Error::claude_execution(format!("Failed to execute claude command: {}", e))
+            })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::claude_execution(format!("Claude command failed: {}", stderr)));
+            return Err(Error::claude_execution(format!(
+                "Claude command failed: {}",
+                stderr
+            )));
         }
 
         let response = String::from_utf8(output.stdout)
@@ -320,9 +326,9 @@ impl EffectRunner {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
             return Err(Error::ai_analysis(format!(
-                "Claude analysis command failed with exit code {:?}:\nStderr: {}\nStdout: {}", 
-                output.status.code(), 
-                stderr, 
+                "Claude analysis command failed with exit code {:?}:\nStderr: {}\nStdout: {}",
+                output.status.code(),
+                stderr,
                 stdout
             )));
         }
@@ -332,7 +338,9 @@ impl EffectRunner {
         let analysis = raw_output.trim().to_string();
 
         if analysis.is_empty() {
-            return Err(Error::ai_analysis("Claude command succeeded but returned empty analysis"));
+            return Err(Error::ai_analysis(
+                "Claude command succeeded but returned empty analysis",
+            ));
         }
 
         // Check if the analysis contains "Execution error" and provide more details
@@ -369,7 +377,12 @@ impl EffectRunner {
         println!("🔍 The AI analysis above has been included in your entry for future reference.");
     }
 
-    async fn create_final_entry(&self, session: &JournalSession, _entry_id: Uuid, analysis: &str) -> Result<String, Error> {
+    async fn create_final_entry(
+        &self,
+        session: &JournalSession,
+        _entry_id: Uuid,
+        analysis: &str,
+    ) -> Result<String, Error> {
         self.ensure_vault_exists()?;
 
         let frontmatter = json!({
@@ -541,7 +554,7 @@ mod tests {
     async fn test_generate_analysis_real_scenario() {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().to_path_buf();
-        let effect_runner = EffectRunner::new(vault_path);
+        let _effect_runner = EffectRunner::new(vault_path);
 
         let mut session = JournalSession::new(SessionMode::Morning);
         session.add_entry(Speaker::User, "I feel great today!".to_string());
@@ -576,7 +589,7 @@ mod tests {
     async fn test_generate_analysis_with_nonexistent_command() {
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().to_path_buf();
-        let effect_runner = EffectRunner::new(vault_path);
+        let _effect_runner = EffectRunner::new(vault_path);
 
         let mut session = JournalSession::new(SessionMode::Morning);
         session.add_entry(Speaker::User, "I feel great today!".to_string());
@@ -620,13 +633,13 @@ mod tests {
         // Try to reproduce the "Execution error" issue
         let temp_dir = TempDir::new().unwrap();
         let vault_path = temp_dir.path().to_path_buf();
-        let effect_runner = EffectRunner::new(vault_path);
+        let _effect_runner = EffectRunner::new(vault_path);
 
         let mut session = JournalSession::new(SessionMode::Morning);
         session.add_entry(Speaker::User, "test".to_string());
 
         // Test what happens with a very long prompt that might cause issues
-        let result = effect_runner.generate_analysis(&session).await;
+        let result = _effect_runner.generate_analysis(&session).await;
 
         match result {
             Ok(analysis) => {
@@ -637,10 +650,10 @@ mod tests {
                 }
             }
             Err(e) => {
-                println!("Analysis failed with error: {e:#}");
+                println!("Analysis failed with error: {:#}", e);
                 // Check if this error would result in "Execution error" being displayed
-                let error_string = format!("{e:#}");
-                println!("Full error string: {error_string}");
+                let error_string = format!("{:#}", e);
+                println!("Full error string: {}", error_string);
 
                 if error_string.contains("Execution error") {
                     println!("Found 'Execution error' in error message!");
@@ -671,4 +684,24 @@ mod tests {
         // and converted to a detailed error message that explains the possible causes
         println!("Test passed: Error detection logic works correctly");
     }
+}
+
+fn create_journal_pack_definition() -> Value {
+    json!({
+        "name": "journal",
+        "version": "0.1.0",
+        "protocolVersion": "0.1.0",
+        "types": [
+            {
+                "id": "journal.session",
+                "version": "1.0.0",
+                "schema": "types/session.schema.json"
+            },
+            {
+                "id": "journal.entry",
+                "version": "1.0.0",
+                "schema": "types/entry.schema.json"
+            }
+        ]
+    })
 }

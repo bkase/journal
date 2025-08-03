@@ -13,7 +13,7 @@ pub fn error_recovery(error: &Error, context: &State) -> (State, Vec<Effect>) {
                 "**AI Analysis Unavailable**\n\n\
                 The AI analysis feature encountered an error and is currently unavailable. \
                 Your journal session has been saved successfully.\n\n\
-                Error details: {}", 
+                Error details: {}",
                 error
             );
             match context {
@@ -27,61 +27,51 @@ pub fn error_recovery(error: &Error, context: &State) -> (State, Vec<Effect>) {
                         ],
                     )
                 }
-                _ => {
-                    (
-                        State::Error(error.clone()),
-                        vec![Effect::ShowError(error.to_string())],
-                    )
-                }
+                _ => (
+                    State::Error(error.clone()),
+                    vec![Effect::ShowError(error.to_string())],
+                ),
             }
         }
-        Error::SessionNotFound { session_id } => {
-            (
-                State::PromptingForNew,
-                vec![
-                    Effect::ShowError(format!("Session {} not found", session_id)),
-                    Effect::ShowMessage("🔄 Starting a new session...".to_string()),
-                    Effect::ShowModePrompt,
-                ],
-            )
-        }
-        Error::VaultOperation { operation } => {
-            (
-                State::Error(error.clone()),
-                vec![
-                    Effect::ShowError(format!("Vault operation failed: {}", operation)),
-                    Effect::ShowMessage("💾 Please check file permissions and disk space.".to_string()),
-                ],
-            )
-        }
-        Error::InvalidSessionState { reason } => {
-            (
-                State::PromptingForNew,
-                vec![
-                    Effect::ShowError(format!("Session state error: {}", reason)),
-                    Effect::ShowMessage("🔄 Attempting to recover by starting fresh...".to_string()),
-                    Effect::ShowModePrompt,
-                ],
-            )
-        }
-        Error::Aethel { message } | Error::Io { message } | Error::Json { message } => {
-            (
-                State::Error(error.clone()),
-                vec![
-                    Effect::ShowError(format!("System error: {}", message)),
-                    Effect::ShowMessage("⚠️  This is a system-level error that may require attention.".to_string()),
-                ],
-            )
-        }
-        Error::Config(msg) => {
-            (
-                State::Error(error.clone()),
-                vec![
-                    Effect::ShowError(format!("Configuration error: {}", msg)),
-                    Effect::ShowMessage("⚙️  Please check your configuration settings.".to_string()),
-                ],
-            )
-        }
+        Error::SessionNotFound { session_id } => (
+            State::PromptingForNew,
+            vec![
+                Effect::ShowError(format!("Session {} not found", session_id)),
+                Effect::ShowMessage("🔄 Starting a new session...".to_string()),
+                Effect::ShowModePrompt,
+            ],
+        ),
+        Error::VaultOperation { operation } => (
+            State::Error(error.clone()),
+            vec![
+                Effect::ShowError(format!("Vault operation failed: {}", operation)),
+                Effect::ShowMessage("💾 Please check file permissions and disk space.".to_string()),
+            ],
+        ),
+        Error::InvalidSessionState { reason } => (
+            State::PromptingForNew,
+            vec![
+                Effect::ShowError(format!("Session state error: {}", reason)),
+                Effect::ShowMessage("🔄 Attempting to recover by starting fresh...".to_string()),
+                Effect::ShowModePrompt,
+            ],
+        ),
+        Error::Aethel { message } | Error::Io { message } | Error::Json { message } => (
+            State::Error(error.clone()),
+            vec![
+                Effect::ShowError(format!("System error: {}", message)),
+                Effect::ShowMessage(
+                    "⚠️  This is a system-level error that may require attention.".to_string(),
+                ),
+            ],
+        ),
+        Error::Config(msg) => (
+            State::Error(error.clone()),
+            vec![
+                Effect::ShowError(format!("Configuration error: {}", msg)),
+                Effect::ShowMessage("⚙️  Please check your configuration settings.".to_string()),
+            ],
+        ),
         Error::UserInput(msg) => {
             // User input errors are recoverable - stay in current state
             (
@@ -92,12 +82,10 @@ pub fn error_recovery(error: &Error, context: &State) -> (State, Vec<Effect>) {
                 ],
             )
         }
-        Error::System(msg) => {
-            (
-                State::Error(error.clone()),
-                vec![Effect::ShowError(format!("System error: {}", msg))],
-            )
-        }
+        Error::System(msg) => (
+            State::Error(error.clone()),
+            vec![Effect::ShowError(format!("System error: {}", msg))],
+        ),
     }
 }
 
@@ -314,7 +302,9 @@ mod tests {
             Action::UserResponse("test".to_string()),
         );
 
-        assert!(matches!(new_state, State::Error(_)));
-        assert_eq!(effects.len(), 0);
+        // Should recover to PromptingForNew instead of staying in Error state
+        assert!(matches!(new_state, State::PromptingForNew));
+        assert!(effects.len() >= 2); // Should have error message and recovery effects
     }
+
 }
