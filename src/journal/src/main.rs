@@ -58,7 +58,10 @@ fn get_default_vault_path() -> PathBuf {
         PathBuf::from(home_dir).join("Documents").join("vault")
     } else {
         // Fallback for Windows or if HOME is not set
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join("Documents").join("vault")
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join("Documents")
+            .join("vault")
     }
 }
 
@@ -90,7 +93,7 @@ fn parse_args() -> Result<AppConfig> {
     let vault_path = matches
         .get_one::<PathBuf>("vault")
         .cloned()
-        .unwrap_or_else(|| get_default_vault_path());
+        .unwrap_or_else(get_default_vault_path);
 
     let command = match matches.subcommand() {
         Some(("new", _)) => AppCommand::New,
@@ -213,7 +216,7 @@ impl JournalApp {
                         match self.effect_runner.run_effect(next_effect).await {
                             Ok(_) => {}
                             Err(e) => {
-                                eprintln!("\n❌ Error executing effect: {:#}", e);
+                                eprintln!("\n❌ Error executing effect: {e:#}");
                                 // Continue with the session instead of crashing
                             }
                         }
@@ -223,8 +226,8 @@ impl JournalApp {
                     // Effect completed successfully without generating an action
                 }
                 Err(e) => {
-                    eprintln!("\n❌ Error executing effect: {:#}", e);
-                    
+                    eprintln!("\n❌ Error executing effect: {e:#}");
+
                     // Special handling for analysis errors - provide fallback behavior
                     if matches!(effect_for_match, Effect::GenerateAnalysis { .. }) {
                         eprintln!("🔄 Continuing without AI analysis...");
@@ -233,19 +236,19 @@ impl JournalApp {
                             "**AI Analysis Unavailable**\n\n\
                             The AI analysis feature encountered an error and is currently unavailable. \
                             Your journal session has been saved successfully.\n\n\
-                            Error details: {}", 
-                            e
+                            Error details: {e}"
                         );
                         let fallback_action = Action::AnalysisComplete(fallback_analysis);
-                        let (next_state, next_effects) = update::update(self.state.clone(), fallback_action);
+                        let (next_state, next_effects) =
+                            update::update(self.state.clone(), fallback_action);
                         self.state = next_state;
-                        
+
                         // Execute any additional effects from the fallback
                         for next_effect in next_effects {
                             match self.effect_runner.run_effect(next_effect).await {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    eprintln!("\n❌ Error in fallback effect: {:#}", e);
+                                    eprintln!("\n❌ Error in fallback effect: {e:#}");
                                 }
                             }
                         }
@@ -297,12 +300,15 @@ mod tests {
 
         // This is a simple test - in practice you'd use clap's testing facilities
         assert!(matches!(config.command, AppCommand::New));
-        
+
         // Verify default path is ~/Documents/vault
         let expected_path = if let Some(home_dir) = std::env::var_os("HOME") {
             PathBuf::from(home_dir).join("Documents").join("vault")
         } else {
-            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join("Documents").join("vault")
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join("Documents")
+                .join("vault")
         };
         assert_eq!(config.vault_path, expected_path);
     }
@@ -310,10 +316,10 @@ mod tests {
     #[test]
     fn test_get_default_vault_path() {
         let default_path = get_default_vault_path();
-        
+
         // The path should end with "Documents/vault"
         assert!(default_path.to_string_lossy().ends_with("Documents/vault"));
-        
+
         // If HOME is set, it should start with the home directory
         if let Some(home_dir) = std::env::var_os("HOME") {
             assert!(default_path.starts_with(home_dir));

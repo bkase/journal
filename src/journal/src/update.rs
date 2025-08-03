@@ -107,7 +107,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
             (
                 State::Done(WriteResult {
                     entry_id,
-                    entry_path: format!("docs/{}.md", entry_id),
+                    entry_path: format!("docs/{entry_id}.md"),
                     session_completed: true,
                 }),
                 vec![
@@ -137,8 +137,6 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
                 ],
             )
         }
-
-
 
         // Session loaded successfully (from Resume)
         (State::Initializing, Action::UserResponse(_)) => {
@@ -225,8 +223,6 @@ mod tests {
         assert!(matches!(effects[0], Effect::SaveSession(_)));
         assert!(matches!(effects[1], Effect::GenerateAnalysis { .. }));
     }
-
-
 
     #[test]
     fn test_invalid_transitions() {

@@ -1,0 +1,45 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install mise
+        uses: jdx/mise-action@v2
+        with:
+          version: 2025.7.27
+
+      - name: Install project tools
+        run: mise install
+
+      - name: Install Rust components
+        run: |
+          rustup component add rustfmt
+          rustup component add clippy
+
+      - name: Check code formatting
+        run: make fmt
+
+      - name: Run linting
+        run: make lint
+
+      - name: Run tests
+        run: make test
+
+      - name: Build project
+        run: make build
