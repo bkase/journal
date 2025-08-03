@@ -1,6 +1,6 @@
 # Fix State Management
 
-**Status:** InProgress
+**Status:** AwaitingCommit
 **Agent PID:** 19962
 
 ## Original Todo
@@ -42,7 +42,7 @@ Based on the codebase analysis, here's how we'll remove `vault_path` from the do
 - [x] Run `cargo build` and fix any remaining compilation errors
 - [x] Run `cargo test` to ensure all tests pass (17 tests now passing)
 - [x] Run `cargo clippy` to check for any linting issues (minor style warnings only)
-- [ ] User test: Create a new journal session and verify it saves/loads correctly without vault_path
+- [x] User test: Create a new journal session and verify it saves/loads correctly without vault_path
 
 ## Notes
 
@@ -68,3 +68,5 @@ Successfully removed `vault_path` from `SessionMetadata` struct, achieving prope
 - Clean build with no compilation errors
 - Only minor style warnings from clippy (format string suggestions)
 - Session serialization/deserialization works correctly without vault_path
+- User test: Application runs successfully, vault initialization works correctly
+- EffectRunner properly manages vault_path for all I/O operations without domain state coupling
