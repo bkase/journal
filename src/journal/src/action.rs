@@ -13,8 +13,7 @@ pub enum Action {
     AnalysisComplete(String),
 }
 
-impl Action {
-}
+impl Action {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct UserInput {
@@ -29,7 +28,6 @@ pub enum InputContext {
 }
 
 impl UserInput {
-
     pub fn new_with_context(input: String, context: InputContext) -> Self {
         let processed = Self::parse_input(&input, context);
         Self {
@@ -59,7 +57,6 @@ impl UserInput {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -77,11 +74,15 @@ mod tests {
                 "I feel great today!",
                 Action::UserResponse("I feel great today!".to_string()),
             ),
-            ("random text", Action::UserResponse("random text".to_string())),
+            (
+                "random text",
+                Action::UserResponse("random text".to_string()),
+            ),
         ];
 
         for (input, expected) in cases {
-            let user_input = UserInput::new_with_context(input.to_string(), InputContext::ModeSelection);
+            let user_input =
+                UserInput::new_with_context(input.to_string(), InputContext::ModeSelection);
             assert_eq!(
                 user_input.processed, expected,
                 "Failed for input: '{input}' in mode selection context"
@@ -109,12 +110,12 @@ mod tests {
         ];
 
         for (input, expected) in cases {
-            let user_input = UserInput::new_with_context(input.to_string(), InputContext::InSession);
+            let user_input =
+                UserInput::new_with_context(input.to_string(), InputContext::InSession);
             assert_eq!(
                 user_input.processed, expected,
                 "Failed for input: '{input}' in session context"
             );
         }
     }
-
 }
