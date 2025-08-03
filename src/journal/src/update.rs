@@ -1,7 +1,49 @@
 use crate::action::Action;
 use crate::effects::Effect;
+use crate::error::Error;
 use crate::state::{JournalSession, SessionMode, Speaker, State, WriteResult};
 use uuid::Uuid;
+
+/// Create recovery actions and effects based on error type
+pub fn error_recovery(error: &Error, context: &State) -> (State, Vec<Effect>) {
+    match error {
+        Error::AiAnalysis(_) | Error::ClaudeExecution { .. } => {
+            // For AI errors, provide fallback analysis
+            let fallback_analysis = format!(
+                "**AI Analysis Unavailable**\n\n\
+                The AI analysis feature encountered an error and is currently unavailable. \
+                Your journal session has been saved successfully.\n\n\
+                Error details: {}",
+                error
+            );
+            match context {
+                State::Analyzing(session) => {
+                    // Continue with fallback analysis - transition to AnalysisReady
+                    (
+                        State::AnalysisReady {
+                            session: session.clone(),
+                            analysis: fallback_analysis,
+                        },
+                        vec![],
+                    )
+                }
+                _ => (State::Error(error.clone()), vec![]),
+            }
+        }
+        Error::SessionNotFound { session_id: _ } => (State::PromptingForNew, vec![]),
+        Error::VaultOperation { operation: _ } => (State::Error(error.clone()), vec![]),
+        Error::InvalidSessionState { reason: _ } => (State::PromptingForNew, vec![]),
+        Error::Aethel { message: _ } | Error::Io { message: _ } | Error::Json { message: _ } => {
+            (State::Error(error.clone()), vec![])
+        }
+        Error::Config(_msg) => (State::Error(error.clone()), vec![]),
+        Error::UserInput(_msg) => {
+            // User input errors are recoverable - stay in current state
+            (context.clone(), vec![])
+        }
+        Error::System(_msg) => (State::Error(error.clone()), vec![]),
+    }
+}
 
 pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
     match (state, action) {
@@ -127,7 +169,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
             // The effect handler would have loaded the session and we transition to InSession
             // This is a placeholder - the actual loaded session would be provided by the effect
             (
-                State::Error("Session load not implemented yet".to_string()),
+                State::Error(Error::system("Session load not implemented yet")),
                 vec![],
             )
         }
@@ -135,7 +177,8 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
         // Invalid state transitions
         (state, action) => {
             let error_msg = format!("Invalid action {action:?} for state {state:?}");
-            (State::Error(error_msg), vec![])
+            let error = Error::invalid_session_state(error_msg);
+            error_recovery(&error, &state)
         }
     }
 }
@@ -215,7 +258,8 @@ mod tests {
             Action::UserResponse("test".to_string()),
         );
 
-        assert!(matches!(new_state, State::Error(_)));
-        assert_eq!(effects.len(), 0);
+        // Should recover to PromptingForNew instead of staying in Error state
+        assert!(matches!(new_state, State::PromptingForNew));
+        assert!(effects.is_empty()); // No effects needed - state transition handles recovery
     }
 }

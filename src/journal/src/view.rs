@@ -12,7 +12,7 @@ pub fn view(state: &State) {
             analysis,
         } => render_analysis_ready(analysis),
         State::Done(result) => render_done(result),
-        State::Error(msg) => render_error(msg),
+        State::Error(error) => render_error(&error.to_string()),
     }
 }
 
@@ -138,7 +138,7 @@ mod tests {
         }));
 
         // Error
-        view(&State::Error("Test error".to_string()));
+        view(&State::Error(crate::error::Error::System("Test error".to_string())));
     }
 
     #[test]

@@ -1,5 +1,8 @@
+#![allow(clippy::uninlined_format_args)]
+
 mod action;
 mod effects;
+mod error;
 mod state;
 mod update;
 mod view;
@@ -8,6 +11,7 @@ use action::{Action, InputContext, UserInput};
 use anyhow::{Context, Result};
 use clap::{Arg, Command as ClapCommand};
 use effects::{Effect, EffectRunner};
+use error::Error;
 use state::State;
 use std::io;
 use std::path::PathBuf;
@@ -179,16 +183,18 @@ impl JournalApp {
                 // Non-interactive states should have generated effects that will advance the state
                 // If we're stuck in a non-interactive state, that's an error
                 if !self.state.is_terminal() {
-                    return Err(anyhow::anyhow!(
+                    return Err(Error::system(format!(
                         "Stuck in non-interactive state: {:?}",
                         self.state
-                    ));
+                    ))
+                    .into());
                 }
             }
         }
 
-        // Exit with error code if we're in an error state
-        if matches!(self.state, State::Error(_)) {
+        // Print final message if we're in an error state
+        if let State::Error(ref error) = self.state {
+            eprintln!("Session ended with error: {}", error);
             std::process::exit(1);
         }
 
@@ -219,7 +225,8 @@ impl JournalApp {
                     for next_effect in next_effects {
                         match self.effect_runner.run_effect(next_effect).await {
                             Ok(_) => {}
-                            Err(_) => {
+                            Err(e) => {
+                                eprintln!("\n❌ Error executing nested effect: {}", e);
                                 // Continue with the session instead of crashing
                             }
                         }
@@ -229,31 +236,66 @@ impl JournalApp {
                     // Effect completed successfully without generating an action
                 }
                 Err(e) => {
-                    // Special handling for analysis errors - provide fallback behavior
-                    if matches!(effect_for_match, Effect::GenerateAnalysis { .. }) {
-                        // Generate a fallback AnalysisComplete action with error message
-                        let fallback_analysis = format!(
-                            "**AI Analysis Unavailable**\n\n\
-                            The AI analysis feature encountered an error and is currently unavailable. \
-                            Your journal session has been saved successfully.\n\n\
-                            Error details: {e}"
-                        );
-                        let fallback_action = Action::AnalysisComplete(fallback_analysis);
-                        let (next_state, next_effects) =
-                            update::update(self.state.clone(), fallback_action);
-                        self.state = next_state;
+                    // Handle different error types with specific recovery strategies
+                    match &e {
+                        Error::AiAnalysis(_) | Error::ClaudeExecution { .. } => {
+                            eprintln!("\n❌ AI Error: {}", e);
+                            if matches!(effect_for_match, Effect::GenerateAnalysis { .. }) {
+                                eprintln!("🔄 Continuing without AI analysis...");
+                                // Generate a fallback AnalysisComplete action with error message
+                                let fallback_analysis = format!(
+                                    "**AI Analysis Unavailable**\n\n\
+                                    The AI analysis feature encountered an error and is currently unavailable. \
+                                    Your journal session has been saved successfully.\n\n\
+                                    Error details: {}", 
+                                    e
+                                );
+                                let fallback_action = Action::AnalysisComplete(fallback_analysis);
+                                let (next_state, next_effects) =
+                                    update::update(self.state.clone(), fallback_action);
+                                self.state = next_state;
 
-                        // Display the updated state
-                        view::view(&self.state);
-
-                        // Execute any additional effects from the fallback
-                        for next_effect in next_effects {
-                            match self.effect_runner.run_effect(next_effect).await {
-                                Ok(_) => {}
-                                Err(_) => {
-                                    // Error in fallback effect, continue anyway
+                                // Execute any additional effects from the fallback
+                                for next_effect in next_effects {
+                                    match self.effect_runner.run_effect(next_effect).await {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            eprintln!("\n❌ Error in fallback effect: {:#}", e);
+                                        }
+                                    }
                                 }
                             }
+                        }
+                        Error::SessionNotFound { session_id } => {
+                            eprintln!("\n❌ Session Error: Session {} not found", session_id);
+                            eprintln!("🔄 Starting a new session...");
+                            // Could trigger a new session action here
+                        }
+                        Error::VaultOperation { operation } => {
+                            eprintln!("\n❌ Vault Error: {}", operation);
+                            eprintln!("💾 This might be a storage issue. Please check file permissions and disk space.");
+                            // For critical vault errors, we might want to exit
+                        }
+                        Error::InvalidSessionState { reason } => {
+                            eprintln!("\n❌ Session State Error: {}", reason);
+                            eprintln!("🔄 Attempting to recover session...");
+                        }
+                        Error::Aethel { .. } | Error::Io { .. } | Error::Json { .. } => {
+                            eprintln!("\n❌ System Error: {}", e);
+                            eprintln!(
+                                "⚠️  This is a system-level error that may require attention."
+                            );
+                        }
+                        Error::Config(_) => {
+                            eprintln!("\n❌ Configuration Error: {}", e);
+                            eprintln!("⚙️  Please check your configuration settings.");
+                        }
+                        Error::UserInput(_) => {
+                            eprintln!("\n❌ Input Error: {}", e);
+                            eprintln!("💬 Please try entering your input again.");
+                        }
+                        Error::System(_) => {
+                            eprintln!("\n❌ System Error: {}", e);
                         }
                     }
                 }

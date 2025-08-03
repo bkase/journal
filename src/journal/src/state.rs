@@ -1,3 +1,4 @@
+use crate::error::Error;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -14,7 +15,7 @@ pub enum State {
         analysis: String,
     },
     Done(WriteResult),
-    Error(String),
+    Error(Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
