@@ -1,0 +1,18 @@
+# Tool version management for journal project
+# This file ensures consistent tool versions across development environments
+
+[tools]
+rust = "1.88.0"
+
+# Optional tools that enhance development workflow
+# These will be available if installed via `mise install`
+cargo-nextest = "latest"
+cargo-audit = "latest"
+
+[env]
+# Rust-specific environment variables
+RUST_BACKTRACE = "1"
+CARGO_INCREMENTAL = "1"
+
+# Journal-specific environment variables
+JOURNAL_LOG_LEVEL = "info"

@@ -1,0 +1,24 @@
+# Rust build artifacts
+/target/
+**/target/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local configuration
+.env
+.env.local
+
+# Journal vault files (user data)
+vault/
+
+# Temporary files
+*.tmp
+*.temp

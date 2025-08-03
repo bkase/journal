@@ -1,0 +1,3 @@
+[submodule "external/aethel"]
+	path = external/aethel
+	url = https://github.com/bkase/aethel.git
