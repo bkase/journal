@@ -94,42 +94,6 @@ impl EffectRunner {
         }
     }
 
-    async fn show_mode_prompt(&self) {
-        println!("\n🌅 Welcome to your journal!");
-        println!("What kind of session would you like to start?");
-        println!("  (m)orning - Start your day with intention");
-        println!("  (e)vening - Reflect on your day");
-        print!("\nChoice (m/e): ");
-        use std::io::{self, Write};
-        io::stdout().flush().unwrap();
-    }
-
-    async fn show_question(&self, question: &str) {
-        println!("\n💭 {question}");
-        print!("\n> ");
-        use std::io::{self, Write};
-        io::stdout().flush().unwrap();
-    }
-
-    async fn show_coach_response(&self, response: &str) {
-        println!("\n🧘 Coach: {response}");
-        println!("\n⏸️  Press (s)top to end session or continue sharing...");
-    }
-
-    async fn show_message(&self, message: &str) {
-        println!("\n✨ {message}");
-    }
-
-    async fn show_error(&self, error: &str) {
-        eprintln!("\n❌ Error: {error}");
-    }
-
-    async fn prompt_for_user_input(&self) {
-        print!("\n> ");
-        use std::io::{self, Write};
-        io::stdout().flush().unwrap();
-    }
-
     fn ensure_vault_exists(&self) -> Result<(), Error> {
         // Check if vault exists, if not initialize it
         if !self.vault_path.join(".aethel").exists() {
@@ -366,18 +330,7 @@ impl EffectRunner {
         Ok(analysis)
     }
 
-    async fn show_analysis(&self, analysis: &str) {
-        println!("\n🧠 **AI Analysis of Your Session**");
-        println!("{}", "=".repeat(50));
-        println!("{analysis}");
-        println!("{}", "=".repeat(50));
-    }
 
-    async fn show_completion_message(&self, entry_path: &str) {
-        println!("\n✨ **Session Complete!**");
-        println!("📝 Your journal entry has been saved to: {entry_path}");
-        println!("🔍 The AI analysis above has been included in your entry for future reference.");
-    }
 
     async fn create_final_entry(
         &self,
@@ -686,24 +639,4 @@ mod tests {
         // and converted to a detailed error message that explains the possible causes
         println!("Test passed: Error detection logic works correctly");
     }
-}
-
-fn create_journal_pack_definition() -> Value {
-    json!({
-        "name": "journal",
-        "version": "0.1.0",
-        "protocolVersion": "0.1.0",
-        "types": [
-            {
-                "id": "journal.session",
-                "version": "1.0.0",
-                "schema": "types/session.schema.json"
-            },
-            {
-                "id": "journal.entry",
-                "version": "1.0.0",
-                "schema": "types/entry.schema.json"
-            }
-        ]
-    })
 }

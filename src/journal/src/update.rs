@@ -18,74 +18,30 @@ pub fn error_recovery(error: &Error, context: &State) -> (State, Vec<Effect>) {
             );
             match context {
                 State::Analyzing(session) => {
-                    // Continue with fallback analysis
+                    // Continue with fallback analysis - transition to AnalysisReady
                     (
-                        State::Analyzing(session.clone()),
-                        vec![
-                            Effect::ShowError(error.to_string()),
-                            Effect::ShowAnalysis(fallback_analysis),
-                        ],
+                        State::AnalysisReady {
+                            session: session.clone(),
+                            analysis: fallback_analysis,
+                        },
+                        vec![],
                     )
                 }
-                _ => (
-                    State::Error(error.clone()),
-                    vec![Effect::ShowError(error.to_string())],
-                ),
+                _ => (State::Error(error.clone()), vec![]),
             }
         }
-        Error::SessionNotFound { session_id } => (
-            State::PromptingForNew,
-            vec![
-                Effect::ShowError(format!("Session {} not found", session_id)),
-                Effect::ShowMessage("🔄 Starting a new session...".to_string()),
-                Effect::ShowModePrompt,
-            ],
-        ),
-        Error::VaultOperation { operation } => (
-            State::Error(error.clone()),
-            vec![
-                Effect::ShowError(format!("Vault operation failed: {}", operation)),
-                Effect::ShowMessage("💾 Please check file permissions and disk space.".to_string()),
-            ],
-        ),
-        Error::InvalidSessionState { reason } => (
-            State::PromptingForNew,
-            vec![
-                Effect::ShowError(format!("Session state error: {}", reason)),
-                Effect::ShowMessage("🔄 Attempting to recover by starting fresh...".to_string()),
-                Effect::ShowModePrompt,
-            ],
-        ),
-        Error::Aethel { message } | Error::Io { message } | Error::Json { message } => (
-            State::Error(error.clone()),
-            vec![
-                Effect::ShowError(format!("System error: {}", message)),
-                Effect::ShowMessage(
-                    "⚠️  This is a system-level error that may require attention.".to_string(),
-                ),
-            ],
-        ),
-        Error::Config(msg) => (
-            State::Error(error.clone()),
-            vec![
-                Effect::ShowError(format!("Configuration error: {}", msg)),
-                Effect::ShowMessage("⚙️  Please check your configuration settings.".to_string()),
-            ],
-        ),
-        Error::UserInput(msg) => {
-            // User input errors are recoverable - stay in current state
-            (
-                context.clone(),
-                vec![
-                    Effect::ShowError(format!("Input error: {}", msg)),
-                    Effect::ShowMessage("💬 Please try entering your input again.".to_string()),
-                ],
-            )
+        Error::SessionNotFound { session_id: _ } => (State::PromptingForNew, vec![]),
+        Error::VaultOperation { operation: _ } => (State::Error(error.clone()), vec![]),
+        Error::InvalidSessionState { reason: _ } => (State::PromptingForNew, vec![]),
+        Error::Aethel { message: _ } | Error::Io { message: _ } | Error::Json { message: _ } => {
+            (State::Error(error.clone()), vec![])
         }
-        Error::System(msg) => (
-            State::Error(error.clone()),
-            vec![Effect::ShowError(format!("System error: {}", msg))],
-        ),
+        Error::Config(_msg) => (State::Error(error.clone()), vec![]),
+        Error::UserInput(_msg) => {
+            // User input errors are recoverable - stay in current state
+            (context.clone(), vec![])
+        }
+        Error::System(_msg) => (State::Error(error.clone()), vec![]),
     }
 }
 
@@ -304,7 +260,6 @@ mod tests {
 
         // Should recover to PromptingForNew instead of staying in Error state
         assert!(matches!(new_state, State::PromptingForNew));
-        assert!(effects.len() >= 2); // Should have error message and recovery effects
+        assert!(effects.is_empty()); // No effects needed - state transition handles recovery
     }
-
 }
