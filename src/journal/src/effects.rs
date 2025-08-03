@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use crate::error::Error;
 use crate::state::{JournalSession, Speaker};
 use aethel_core::{apply_patch, read_doc, Patch, PatchMode};
@@ -568,7 +570,7 @@ mod tests {
         );
 
         // This should reproduce the actual error we're seeing
-        let result = effect_runner.generate_analysis(&session).await;
+        let result = _effect_runner.generate_analysis(&session).await;
 
         // Print the detailed error to understand what's happening
         match result {
@@ -606,7 +608,7 @@ mod tests {
 
         // The actual generate_analysis method should handle this gracefully
         // and return a detailed error message
-        let result = effect_runner.generate_analysis(&session).await;
+        let result = _effect_runner.generate_analysis(&session).await;
 
         // We expect this to succeed with the claude command, but if it fails,
         // it should provide a detailed error message
