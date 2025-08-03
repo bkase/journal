@@ -520,7 +520,7 @@ mod tests {
         let vault_path = temp_dir.path().to_path_buf();
         let _effect_runner = EffectRunner::new(vault_path);
 
-        let mut session = JournalSession::new(SessionMode::Morning, "test".to_string());
+        let mut session = JournalSession::new(SessionMode::Morning);
         session.add_entry(Speaker::User, "I feel great today!".to_string());
         session.add_entry(Speaker::Coach, "That's wonderful to hear!".to_string());
 
@@ -540,7 +540,7 @@ mod tests {
         let vault_path = temp_dir.path().to_path_buf();
         let _effect_runner = EffectRunner::new(vault_path);
 
-        let mut session = JournalSession::new(SessionMode::Morning, "test".to_string());
+        let mut session = JournalSession::new(SessionMode::Morning);
         session.add_entry(Speaker::User, "I feel great today!".to_string());
         session.add_entry(Speaker::Coach, "That's wonderful to hear!".to_string());
 
@@ -563,7 +563,7 @@ mod tests {
         let vault_path = temp_dir.path().to_path_buf();
         let effect_runner = EffectRunner::new(vault_path);
 
-        let mut session = JournalSession::new(SessionMode::Morning, "test".to_string());
+        let mut session = JournalSession::new(SessionMode::Morning);
         session.add_entry(Speaker::User, "I feel great today!".to_string());
         session.add_entry(Speaker::Coach, "That's wonderful to hear! What's making you feel so positive?".to_string());
         session.add_entry(Speaker::User, "I had a good night's sleep and I'm looking forward to the day.".to_string());
@@ -592,7 +592,7 @@ mod tests {
         let vault_path = temp_dir.path().to_path_buf();
         let effect_runner = EffectRunner::new(vault_path);
 
-        let mut session = JournalSession::new(SessionMode::Morning, "test".to_string());
+        let mut session = JournalSession::new(SessionMode::Morning);
         session.add_entry(Speaker::User, "I feel great today!".to_string());
 
         // Temporarily replace the claude command with a non-existent one to simulate failure
@@ -636,7 +636,7 @@ mod tests {
         let vault_path = temp_dir.path().to_path_buf();
         let effect_runner = EffectRunner::new(vault_path);
 
-        let mut session = JournalSession::new(SessionMode::Morning, "test".to_string());
+        let mut session = JournalSession::new(SessionMode::Morning);
         session.add_entry(Speaker::User, "test".to_string());
 
         // Test what happens with a very long prompt that might cause issues
@@ -671,7 +671,7 @@ mod tests {
         let effect_runner = EffectRunner::new(vault_path);
 
         // Create a mock session
-        let mut session = JournalSession::new(SessionMode::Morning, "test".to_string());
+        let mut session = JournalSession::new(SessionMode::Morning);
         session.add_entry(Speaker::User, "test input".to_string());
 
         // We can't easily mock the claude command to return "Execution error",

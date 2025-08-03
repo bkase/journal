@@ -33,16 +33,38 @@ We're removing the `vault_path` field from the `SessionMetadata` struct to prope
 
 Based on the codebase analysis, here's how we'll remove `vault_path` from the domain state:
 
-- [ ] Remove `vault_path` field from `SessionMetadata` struct in src/journal/src/state.rs:44-50
-- [ ] Update `JournalSession::new()` signature to remove vault_path parameter in src/journal/src/state.rs:105-111
-- [ ] Fix session creation in src/journal/src/update.rs:20-25 to not pass vault_path
-- [ ] Update test session creation in src/journal/src/update.rs:199-200, 224-225
-- [ ] Verify session serialization/deserialization works without vault_path in src/journal/src/effects.rs:168-231
-- [ ] Run `cargo build` and fix any remaining compilation errors
-- [ ] Run `cargo test` to ensure all tests pass
-- [ ] Run `cargo clippy` to check for any linting issues
+- [x] Remove `vault_path` field from `SessionMetadata` struct in src/journal/src/state.rs:44-50
+- [x] Update `JournalSession::new()` signature to remove vault_path parameter in src/journal/src/state.rs:105-111
+- [x] Fix session creation in src/journal/src/update.rs:20-25 to not pass vault_path
+- [x] Update test session creation in src/journal/src/update.rs:199-200, 224-225
+- [x] Fix additional test cases in src/journal/src/effects.rs (6 more test functions)
+- [x] Verify session serialization/deserialization works without vault_path in src/journal/src/effects.rs:168-231
+- [x] Run `cargo build` and fix any remaining compilation errors
+- [x] Run `cargo test` to ensure all tests pass (17 tests now passing)
+- [x] Run `cargo clippy` to check for any linting issues (minor style warnings only)
 - [ ] User test: Create a new journal session and verify it saves/loads correctly without vault_path
 
 ## Notes
 
-[Implementation notes]
+### Implementation Summary
+
+Successfully removed `vault_path` from `SessionMetadata` struct, achieving proper separation of environmental concerns from domain state:
+
+**Changes Made:**
+- Removed `pub vault_path: String` field from `SessionMetadata` struct (state.rs:45)
+- Updated `JournalSession::new()` to take only `SessionMode` parameter (state.rs:100)
+- Removed vault_path acquisition logic from update.rs (lines 20-23) 
+- Fixed all test cases in update.rs and effects.rs (8 total functions updated)
+- Verified EffectRunner continues to properly manage vault_path for all I/O operations
+
+**Architecture Improvements:**
+- Domain state (`SessionMetadata`) now contains only business logic data
+- Environmental data (`vault_path`) isolated to `EffectRunner` infrastructure layer  
+- Session persistence no longer includes vault paths, improving portability
+- Tests simplified as they no longer need to provide fake vault paths
+
+**Validation Results:**
+- All 29 tests pass (12 aethel-core + 17 journal tests)
+- Clean build with no compilation errors
+- Only minor style warnings from clippy (format string suggestions)
+- Session serialization/deserialization works correctly without vault_path
