@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use clap::{Arg, Command as ClapCommand};
 use effects::{Effect, EffectRunner};
 use state::State;
-use std::io::{self, Write};
+use std::io;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -198,7 +198,7 @@ impl JournalApp {
     async fn process_action(&mut self, action: Action) -> Result<()> {
         let (new_state, effects) = update::update(self.state.clone(), action);
         self.state = new_state;
-        
+
         // Display the new state
         view::view(&self.state);
 
@@ -211,7 +211,7 @@ impl JournalApp {
                     let (next_state, next_effects) =
                         update::update(self.state.clone(), resulting_action);
                     self.state = next_state;
-                    
+
                     // Display the updated state
                     view::view(&self.state);
 
@@ -242,10 +242,10 @@ impl JournalApp {
                         let (next_state, next_effects) =
                             update::update(self.state.clone(), fallback_action);
                         self.state = next_state;
-                        
+
                         // Display the updated state
                         view::view(&self.state);
-                        
+
                         // Execute any additional effects from the fallback
                         for next_effect in next_effects {
                             match self.effect_runner.run_effect(next_effect).await {
@@ -264,7 +264,6 @@ impl JournalApp {
     }
 
     async fn get_user_input(&mut self) -> Result<String> {
-
         let mut line = String::new();
         io::stdin()
             .read_line(&mut line)

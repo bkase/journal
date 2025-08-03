@@ -6,9 +6,7 @@ use uuid::Uuid;
 pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
     match (state, action) {
         // Starting a new journal session
-        (State::Initializing, Action::Start) => {
-            (State::PromptingForNew, vec![])
-        }
+        (State::Initializing, Action::Start) => (State::PromptingForNew, vec![]),
 
         // Resuming an existing session
         (State::Initializing, Action::Resume(session_id)) => {
@@ -18,7 +16,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
         // Mode selection
         (State::PromptingForNew, Action::SelectMode(mode)) => {
             let mut session = JournalSession::new(mode);
-            let initial_questions = session.mode.get_initial_questions();
+            let _initial_questions = session.mode.get_initial_questions();
 
             session.add_entry(
                 Speaker::System,
@@ -66,14 +64,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
 
         // Moving to next question
         (State::InSession(session), Action::NextQuestion) => {
-            let user_responses = session.get_user_responses().len();
-            let questions = session.mode.get_initial_questions();
-
-            if user_responses < questions.len() {
-                (State::InSession(session), vec![])
-            } else {
-                (State::InSession(session), vec![Effect::PromptForUserInput])
-            }
+            (State::InSession(session), vec![])
         }
 
         // Stopping session (user pressed 's')
@@ -95,17 +86,15 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
         (State::Analyzing(session), Action::AnalysisComplete(analysis)) => {
             let entry_id = Uuid::new_v4();
             (
-                State::AnalysisReady { 
-                    session: session.clone(), 
-                    analysis: analysis.clone() 
+                State::AnalysisReady {
+                    session: session.clone(),
+                    analysis: analysis.clone(),
                 },
-                vec![
-                    Effect::CreateFinalEntry {
-                        session,
-                        entry_id,
-                        analysis,
-                    },
-                ],
+                vec![Effect::CreateFinalEntry {
+                    session,
+                    entry_id,
+                    analysis,
+                }],
             )
         }
 

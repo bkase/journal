@@ -67,8 +67,14 @@ impl EffectRunner {
                 let analysis = self.generate_analysis(&session).await?;
                 Ok(Some(crate::action::Action::AnalysisComplete(analysis)))
             }
-            Effect::CreateFinalEntry { session, entry_id, analysis } => {
-                let entry_path = self.create_final_entry(&session, entry_id, &analysis).await?;
+            Effect::CreateFinalEntry {
+                session,
+                entry_id,
+                analysis,
+            } => {
+                let entry_path = self
+                    .create_final_entry(&session, entry_id, &analysis)
+                    .await?;
                 Ok(Some(crate::action::Action::FinalEntryCreated {
                     entry_path,
                     analysis,
