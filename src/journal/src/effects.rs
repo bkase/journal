@@ -1,6 +1,7 @@
+use crate::error::Error;
 use crate::state::{JournalSession, Speaker};
 use aethel_core::{apply_patch, read_doc, Patch, PatchMode};
-use anyhow::{Context, Result};
+use anyhow::Context;
 use chrono::Utc;
 use include_dir::{include_dir, Dir};
 use serde_json::json;
@@ -41,7 +42,7 @@ impl EffectRunner {
         Self { vault_path }
     }
 
-    pub async fn run_effect(&self, effect: Effect) -> Result<Option<crate::action::Action>> {
+    pub async fn run_effect(&self, effect: Effect) -> Result<Option<crate::action::Action>, Error> {
         match effect {
             Effect::SaveSession(session) => {
                 self.save_session(&session).await?;
@@ -91,7 +92,43 @@ impl EffectRunner {
         }
     }
 
-    fn ensure_vault_exists(&self) -> Result<()> {
+    async fn show_mode_prompt(&self) {
+        println!("\n🌅 Welcome to your journal!");
+        println!("What kind of session would you like to start?");
+        println!("  (m)orning - Start your day with intention");
+        println!("  (e)vening - Reflect on your day");
+        print!("\nChoice (m/e): ");
+        use std::io::{self, Write};
+        io::stdout().flush().unwrap();
+    }
+
+    async fn show_question(&self, question: &str) {
+        println!("\n💭 {question}");
+        print!("\n> ");
+        use std::io::{self, Write};
+        io::stdout().flush().unwrap();
+    }
+
+    async fn show_coach_response(&self, response: &str) {
+        println!("\n🧘 Coach: {response}");
+        println!("\n⏸️  Press (s)top to end session or continue sharing...");
+    }
+
+    async fn show_message(&self, message: &str) {
+        println!("\n✨ {message}");
+    }
+
+    async fn show_error(&self, error: &str) {
+        eprintln!("\n❌ Error: {error}");
+    }
+
+    async fn prompt_for_user_input(&self) {
+        print!("\n> ");
+        use std::io::{self, Write};
+        io::stdout().flush().unwrap();
+    }
+
+    fn ensure_vault_exists(&self) -> Result<(), Error> {
         // Check if vault exists, if not initialize it
         if !self.vault_path.join(".aethel").exists() {
             // Create basic vault structure
@@ -105,7 +142,7 @@ impl EffectRunner {
         Ok(())
     }
 
-    async fn save_session(&self, session: &JournalSession) -> Result<()> {
+    async fn save_session(&self, session: &JournalSession) -> Result<(), Error> {
         self.ensure_vault_exists()?;
 
         // Create a copy of the metadata for the frontmatter
@@ -133,25 +170,26 @@ impl EffectRunner {
             ),
         };
 
-        let write_result =
-            apply_patch(&self.vault_path, patch).context("Failed to save session document")?;
-
+        let write_result = apply_patch(&self.vault_path, patch)
+            .map_err(|e| Error::vault_operation(format!("Failed to save session document: {}", e)))?;
         // Update the index to track this session as active
         self.update_index(write_result.uuid).await?;
 
         Ok(())
     }
 
-    async fn load_session(&self, session_id: Uuid) -> Result<JournalSession> {
+    async fn load_session(&self, session_id: Uuid) -> Result<JournalSession, Error> {
         self.ensure_vault_exists()?;
 
         // Try to read the session document by UUID
         let doc =
-            read_doc(&self.vault_path, &session_id).context("Failed to load session document")?;
+            read_doc(&self.vault_path, &session_id)
+                .map_err(|e| Error::session_not_found(format!("Failed to load session {}: {}", session_id, e)))?;
 
         // Parse the transcript from the body
         let transcript =
-            serde_json::from_str(&doc.body).context("Failed to parse session transcript")?;
+            serde_json::from_str(&doc.body)
+                .map_err(|e| Error::invalid_session_state(format!("Failed to parse session transcript: {}", e)))?;
 
         // Extract session data from frontmatter
         let session_data = &doc.frontmatter_extra;
@@ -173,7 +211,7 @@ impl EffectRunner {
         Ok(session)
     }
 
-    async fn update_index(&self, session_id: Uuid) -> Result<()> {
+    async fn update_index(&self, session_id: Uuid) -> Result<(), Error> {
         let index_path = self.vault_path.join(".aethel/indexes/journal.index.json");
 
         // Ensure the directory exists
@@ -195,7 +233,7 @@ impl EffectRunner {
         Ok(())
     }
 
-    async fn clear_index(&self) -> Result<()> {
+    async fn clear_index(&self) -> Result<(), Error> {
         let index_path = self.vault_path.join(".aethel/indexes/journal.index.json");
 
         if index_path.exists() {
@@ -211,7 +249,7 @@ impl EffectRunner {
         &self,
         session: &JournalSession,
         user_response: &str,
-    ) -> Result<String> {
+    ) -> Result<String, Error> {
         let context = session.mode.get_coaching_context();
         let conversation_history = session
             .transcript
@@ -237,11 +275,11 @@ impl EffectRunner {
             .arg("-p")
             .arg(&prompt)
             .output()
-            .context("Failed to execute claude command")?;
+            .map_err(|e| Error::claude_execution(format!("Failed to execute claude command: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("Claude command failed: {}", stderr);
+            return Err(Error::claude_execution(format!("Claude command failed: {}", stderr)));
         }
 
         let response = String::from_utf8(output.stdout)
@@ -252,7 +290,7 @@ impl EffectRunner {
         Ok(response)
     }
 
-    async fn generate_analysis(&self, session: &JournalSession) -> Result<String> {
+    async fn generate_analysis(&self, session: &JournalSession) -> Result<String, Error> {
         let context = match session.mode {
             crate::state::SessionMode::Morning => "morning reflections and intentions",
             crate::state::SessionMode::Evening => "evening reflections and insights",
@@ -276,19 +314,17 @@ impl EffectRunner {
             .arg("-p")
             .arg(&prompt)
             .output()
-            .context(
-                "Failed to execute claude command for analysis - is 'claude' CLI installed?",
-            )?;
+            .map_err(|e| Error::claude_execution(format!("Failed to execute claude command for analysis - is 'claude' CLI installed?: {}", e)))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            anyhow::bail!(
-                "Claude analysis command failed with exit code {:?}:\nStderr: {}\nStdout: {}",
-                output.status.code(),
-                stderr,
+            return Err(Error::ai_analysis(format!(
+                "Claude analysis command failed with exit code {:?}:\nStderr: {}\nStdout: {}", 
+                output.status.code(), 
+                stderr, 
                 stdout
-            );
+            )));
         }
 
         let raw_output = String::from_utf8(output.stdout)
@@ -296,12 +332,12 @@ impl EffectRunner {
         let analysis = raw_output.trim().to_string();
 
         if analysis.is_empty() {
-            anyhow::bail!("Claude command succeeded but returned empty analysis");
+            return Err(Error::ai_analysis("Claude command succeeded but returned empty analysis"));
         }
 
         // Check if the analysis contains "Execution error" and provide more details
         if analysis.contains("Execution error") {
-            anyhow::bail!(
+            return Err(Error::ai_analysis(format!(
                 "Claude CLI returned 'Execution error'. This is likely due to:\n\
                 • Network connectivity issues\n\
                 • API rate limiting or quota exceeded\n\
@@ -314,18 +350,26 @@ impl EffectRunner {
                 3. Claude service status\n\n\
                 Raw claude output: '{}'",
                 analysis
-            );
+            )));
         }
 
         Ok(analysis)
     }
 
-    async fn create_final_entry(
-        &self,
-        session: &JournalSession,
-        _entry_id: Uuid,
-        analysis: &str,
-    ) -> Result<String> {
+    async fn show_analysis(&self, analysis: &str) {
+        println!("\n🧠 **AI Analysis of Your Session**");
+        println!("{}", "=".repeat(50));
+        println!("{analysis}");
+        println!("{}", "=".repeat(50));
+    }
+
+    async fn show_completion_message(&self, entry_path: &str) {
+        println!("\n✨ **Session Complete!**");
+        println!("📝 Your journal entry has been saved to: {entry_path}");
+        println!("🔍 The AI analysis above has been included in your entry for future reference.");
+    }
+
+    async fn create_final_entry(&self, session: &JournalSession, _entry_id: Uuid, analysis: &str) -> Result<String, Error> {
         self.ensure_vault_exists()?;
 
         let frontmatter = json!({
@@ -372,7 +416,7 @@ impl EffectRunner {
         Ok(entry_path)
     }
 
-    async fn initialize_vault(&self, path: &Path) -> Result<()> {
+    async fn initialize_vault(&self, path: &Path) -> Result<(), Error> {
         // Create vault directory structure
         std::fs::create_dir_all(path.join("docs")).context("Failed to create docs directory")?;
         std::fs::create_dir_all(path.join("packs")).context("Failed to create packs directory")?;
@@ -385,18 +429,18 @@ impl EffectRunner {
         Ok(())
     }
 
-    async fn install_journal_pack(&self, vault_path: &Path) -> Result<()> {
+    async fn install_journal_pack(&self, vault_path: &Path) -> Result<(), Error> {
         let pack_path = vault_path.join("packs/journal@0.1.0");
 
         // Create the pack directory first
         fs::create_dir_all(&pack_path)
             .await
-            .context("Failed to create pack directory")?;
+            .map_err(|e| Error::vault_operation(format!("Failed to create pack directory: {}", e)))?;
 
         // Extract all files from the embedded pack directory
         JOURNAL_PACK
             .extract(&pack_path)
-            .context("Failed to extract journal pack files")?;
+            .map_err(|e| Error::vault_operation(format!("Failed to extract journal pack files: {}", e)))?;
 
         Ok(())
     }

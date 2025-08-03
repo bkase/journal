@@ -1,5 +1,6 @@
 use crate::action::Action;
 use crate::effects::Effect;
+use crate::error::Error;
 use crate::state::{JournalSession, SessionMode, Speaker, State, WriteResult};
 use uuid::Uuid;
 
@@ -127,7 +128,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
             // The effect handler would have loaded the session and we transition to InSession
             // This is a placeholder - the actual loaded session would be provided by the effect
             (
-                State::Error("Session load not implemented yet".to_string()),
+                State::Error(Error::system("Session load not implemented yet")),
                 vec![],
             )
         }
@@ -135,7 +136,11 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
         // Invalid state transitions
         (state, action) => {
             let error_msg = format!("Invalid action {action:?} for state {state:?}");
-            (State::Error(error_msg), vec![])
+            let error = Error::invalid_session_state(error_msg.clone());
+            (
+                State::Error(error),
+                vec![Effect::ShowError(error_msg)],
+            )
         }
     }
 }
