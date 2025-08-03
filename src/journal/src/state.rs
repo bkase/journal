@@ -8,20 +8,16 @@ pub enum State {
     Initializing,
     PromptingForNew,
     InSession(JournalSession),
-    Analyzing,
-    Saving,
+    Analyzing(JournalSession),
     Done(WriteResult),
     Error(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct JournalSession {
-    pub id: Uuid,
     pub mode: SessionMode,
     pub transcript: Vec<TranscriptEntry>,
     pub metadata: SessionMetadata,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -49,7 +45,6 @@ pub struct SessionMetadata {
     pub vault_path: String,
     pub session_doc_id: Option<Uuid>,
     pub final_entry_id: Option<Uuid>,
-    pub started_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
     pub custom_fields: HashMap<String, serde_json::Value>,
 }
@@ -104,21 +99,16 @@ impl SessionMode {
 
 impl JournalSession {
     pub fn new(mode: SessionMode, vault_path: String) -> Self {
-        let now = Utc::now();
         Self {
-            id: Uuid::new_v4(),
             mode,
             transcript: Vec::new(),
             metadata: SessionMetadata {
                 vault_path,
                 session_doc_id: None,
                 final_entry_id: None,
-                started_at: now,
                 completed_at: None,
                 custom_fields: HashMap::new(),
             },
-            created_at: now,
-            updated_at: now,
         }
     }
 
@@ -128,7 +118,6 @@ impl JournalSession {
             speaker,
             content,
         });
-        self.updated_at = Utc::now();
     }
 
     pub fn get_user_responses(&self) -> Vec<&TranscriptEntry> {
@@ -140,16 +129,12 @@ impl JournalSession {
 
     pub fn get_conversation_summary(&self) -> String {
         let mut summary = format!(
-            "Journal Session ({})\n",
+            "Journal Session ({})\n\n",
             match self.mode {
                 SessionMode::Morning => "Morning",
                 SessionMode::Evening => "Evening",
             }
         );
-        summary.push_str(&format!(
-            "Started: {}\n\n",
-            self.created_at.format("%Y-%m-%d %H:%M:%S UTC")
-        ));
 
         for entry in &self.transcript {
             let speaker_label = match entry.speaker {
@@ -165,6 +150,5 @@ impl JournalSession {
 
     pub fn mark_completed(&mut self) {
         self.metadata.completed_at = Some(Utc::now());
-        self.updated_at = Utc::now();
     }
 }

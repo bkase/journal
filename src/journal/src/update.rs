@@ -36,11 +36,12 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
                 ),
             );
 
+            // Note: The session document UUID will be created during SaveSession effect
+            // The UpdateIndex effect will need to be triggered after the document is saved
             (
                 State::InSession(session.clone()),
                 vec![
                     Effect::SaveSession(session.clone()),
-                    Effect::UpdateIndex(session.id),
                     Effect::ShowQuestion(initial_questions[0].to_string()),
                 ],
             )
@@ -90,55 +91,44 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
             }
         }
 
-        // Requesting summary
-        (State::InSession(session), Action::RequestSummary) => {
-            let summary = session.get_conversation_summary();
-            (
-                State::InSession(session),
-                vec![Effect::ShowSummary(summary), Effect::PromptForUserInput],
-            )
-        }
-
-        // Saving session (without completing)
-        (State::InSession(session), Action::Save) => (
-            State::Saving,
-            vec![
-                Effect::SaveSession(session),
-                Effect::ShowMessage("Session saved. You can resume later.".to_string()),
-            ],
-        ),
-
-        // Completing session
-        (State::InSession(mut session), Action::Complete) => {
+        // Stopping session (user pressed 's')
+        (State::InSession(mut session), Action::Stop) => {
             session.mark_completed();
-            let entry_id = Uuid::new_v4();
 
             (
-                State::Analyzing,
+                State::Analyzing(session.clone()),
                 vec![
                     Effect::SaveSession(session.clone()),
-                    Effect::CreateFinalEntry {
+                    Effect::GenerateAnalysis {
                         session: session.clone(),
-                        entry_id,
                     },
                 ],
             )
         }
 
-        // Session saved successfully (from Save action)
-        (State::Saving, Action::Save) => {
+        // Analysis completed - show analysis and create final entry
+        (State::Analyzing(session), Action::AnalysisComplete(analysis)) => {
+            let entry_id = Uuid::new_v4();
             (
                 State::Done(WriteResult {
-                    entry_id: Uuid::new_v4(), // Temporary ID for save operations
-                    entry_path: "session_saved".to_string(),
-                    session_completed: false,
+                    entry_id,
+                    entry_path: format!("docs/{}.md", entry_id),
+                    session_completed: true,
                 }),
-                vec![Effect::ClearIndex],
+                vec![
+                    Effect::ShowAnalysis(analysis.clone()),
+                    Effect::CreateFinalEntry {
+                        session,
+                        entry_id,
+                        analysis,
+                    },
+                    Effect::ClearIndex,
+                ],
             )
         }
 
-        // Final entry created successfully
-        (State::Analyzing, Action::Complete) => {
+        // Final entry created successfully (legacy handler - should not be used anymore)
+        (State::Analyzing(_), Action::Stop) => {
             let entry_id = Uuid::new_v4();
             (
                 State::Done(WriteResult {
@@ -153,18 +143,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
             )
         }
 
-        // Quitting
-        (_, Action::Quit) => (
-            State::Done(WriteResult {
-                entry_id: Uuid::new_v4(),
-                entry_path: "quit".to_string(),
-                session_completed: false,
-            }),
-            vec![Effect::ShowMessage("Goodbye!".to_string())],
-        ),
 
-        // Error handling
-        (_, Action::Error(msg)) => (State::Error(msg.clone()), vec![Effect::ShowError(msg)]),
 
         // Session loaded successfully (from Resume)
         (State::Initializing, Action::UserResponse(_)) => {
@@ -210,9 +189,9 @@ mod tests {
         );
 
         assert!(matches!(new_state, State::InSession(_)));
-        assert_eq!(effects.len(), 3);
-        assert!(matches!(effects[1], Effect::UpdateIndex(_)));
-        assert!(matches!(effects[2], Effect::ShowQuestion(_)));
+        assert_eq!(effects.len(), 2);
+        // Index update is now handled after session save
+        assert!(matches!(effects[1], Effect::ShowQuestion(_)));
     }
 
     #[test]
@@ -241,37 +220,20 @@ mod tests {
     }
 
     #[test]
-    fn test_complete_session() {
+    fn test_stop_session() {
         let vault_path = "/test/vault".to_string();
         let session = JournalSession::new(SessionMode::Morning, vault_path);
-        let initial_state = State::InSession(session);
+        let initial_state = State::InSession(session.clone());
 
-        let (new_state, effects) = update(initial_state, Action::Complete);
+        let (new_state, effects) = update(initial_state, Action::Stop);
 
-        assert_eq!(new_state, State::Analyzing);
+        assert!(matches!(new_state, State::Analyzing(_)));
         assert_eq!(effects.len(), 2);
         assert!(matches!(effects[0], Effect::SaveSession(_)));
-        assert!(matches!(effects[1], Effect::CreateFinalEntry { .. }));
+        assert!(matches!(effects[1], Effect::GenerateAnalysis { .. }));
     }
 
-    #[test]
-    fn test_quit_action() {
-        let (new_state, effects) = update(State::Initializing, Action::Quit);
 
-        assert!(matches!(new_state, State::Done(_)));
-        assert_eq!(effects.len(), 1);
-        assert!(matches!(effects[0], Effect::ShowMessage(_)));
-    }
-
-    #[test]
-    fn test_error_action() {
-        let error_msg = "Test error".to_string();
-        let (new_state, effects) = update(State::Initializing, Action::Error(error_msg.clone()));
-
-        assert_eq!(new_state, State::Error(error_msg.clone()));
-        assert_eq!(effects.len(), 1);
-        assert!(matches!(effects[0], Effect::ShowError(_)));
-    }
 
     #[test]
     fn test_invalid_transitions() {

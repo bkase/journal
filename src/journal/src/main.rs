@@ -3,7 +3,7 @@ mod effects;
 mod state;
 mod update;
 
-use action::{Action, UserInput};
+use action::{Action, InputContext, UserInput};
 use anyhow::{Context, Result};
 use clap::{Arg, Command as ClapCommand};
 use effects::{Effect, EffectRunner};
@@ -52,6 +52,16 @@ async fn main() -> Result<()> {
     app.run(initial_action).await
 }
 
+fn get_default_vault_path() -> PathBuf {
+    // Default to ~/Documents/vault
+    if let Some(home_dir) = std::env::var_os("HOME") {
+        PathBuf::from(home_dir).join("Documents").join("vault")
+    } else {
+        // Fallback for Windows or if HOME is not set
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join("Documents").join("vault")
+    }
+}
+
 fn parse_args() -> Result<AppConfig> {
     let matches = ClapCommand::new("journal")
         .version("0.1.0")
@@ -61,7 +71,7 @@ fn parse_args() -> Result<AppConfig> {
                 .short('v')
                 .long("vault")
                 .value_name("PATH")
-                .help("Path to the journal vault")
+                .help("Path to the journal vault (default: ~/Documents/vault)")
                 .value_parser(clap::value_parser!(PathBuf)),
         )
         .subcommand(ClapCommand::new("new").about("Start a new journal session"))
@@ -80,7 +90,7 @@ fn parse_args() -> Result<AppConfig> {
     let vault_path = matches
         .get_one::<PathBuf>("vault")
         .cloned()
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        .unwrap_or_else(|| get_default_vault_path());
 
     let command = match matches.subcommand() {
         Some(("new", _)) => AppCommand::New,
@@ -156,7 +166,12 @@ impl JournalApp {
             if self.state.is_interactive() {
                 // Get user input
                 let input = self.get_user_input().await?;
-                let action = UserInput::new(input).processed;
+                let context = match self.state {
+                    State::PromptingForNew => InputContext::ModeSelection,
+                    State::InSession(_) => InputContext::InSession,
+                    _ => InputContext::ModeSelection,
+                };
+                let action = UserInput::new_with_context(input, context).processed;
                 self.process_action(action).await?;
             } else {
                 // Non-interactive states should have generated effects that will advance the state
@@ -185,15 +200,56 @@ impl JournalApp {
 
         // Execute all effects
         for effect in effects {
-            if let Some(resulting_action) = self.effect_runner.run_effect(effect).await? {
-                // Some effects generate new actions (like coach responses)
-                let (next_state, next_effects) =
-                    update::update(self.state.clone(), resulting_action);
-                self.state = next_state;
+            let effect_for_match = effect.clone();
+            match self.effect_runner.run_effect(effect).await {
+                Ok(Some(resulting_action)) => {
+                    // Some effects generate new actions (like coach responses)
+                    let (next_state, next_effects) =
+                        update::update(self.state.clone(), resulting_action);
+                    self.state = next_state;
 
-                // Execute any additional effects
-                for next_effect in next_effects {
-                    self.effect_runner.run_effect(next_effect).await?;
+                    // Execute any additional effects
+                    for next_effect in next_effects {
+                        match self.effect_runner.run_effect(next_effect).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                eprintln!("\n❌ Error executing effect: {:#}", e);
+                                // Continue with the session instead of crashing
+                            }
+                        }
+                    }
+                }
+                Ok(None) => {
+                    // Effect completed successfully without generating an action
+                }
+                Err(e) => {
+                    eprintln!("\n❌ Error executing effect: {:#}", e);
+                    
+                    // Special handling for analysis errors - provide fallback behavior
+                    if matches!(effect_for_match, Effect::GenerateAnalysis { .. }) {
+                        eprintln!("🔄 Continuing without AI analysis...");
+                        // Generate a fallback AnalysisComplete action with error message
+                        let fallback_analysis = format!(
+                            "**AI Analysis Unavailable**\n\n\
+                            The AI analysis feature encountered an error and is currently unavailable. \
+                            Your journal session has been saved successfully.\n\n\
+                            Error details: {}", 
+                            e
+                        );
+                        let fallback_action = Action::AnalysisComplete(fallback_analysis);
+                        let (next_state, next_effects) = update::update(self.state.clone(), fallback_action);
+                        self.state = next_state;
+                        
+                        // Execute any additional effects from the fallback
+                        for next_effect in next_effects {
+                            match self.effect_runner.run_effect(next_effect).await {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("\n❌ Error in fallback effect: {:#}", e);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -235,12 +291,33 @@ mod tests {
     fn test_arg_parsing() {
         // Test default behavior
         let config = AppConfig {
-            vault_path: PathBuf::from("."),
+            vault_path: get_default_vault_path(),
             command: AppCommand::New,
         };
 
         // This is a simple test - in practice you'd use clap's testing facilities
         assert!(matches!(config.command, AppCommand::New));
+        
+        // Verify default path is ~/Documents/vault
+        let expected_path = if let Some(home_dir) = std::env::var_os("HOME") {
+            PathBuf::from(home_dir).join("Documents").join("vault")
+        } else {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join("Documents").join("vault")
+        };
+        assert_eq!(config.vault_path, expected_path);
+    }
+
+    #[test]
+    fn test_get_default_vault_path() {
+        let default_path = get_default_vault_path();
+        
+        // The path should end with "Documents/vault"
+        assert!(default_path.to_string_lossy().ends_with("Documents/vault"));
+        
+        // If HOME is set, it should start with the home directory
+        if let Some(home_dir) = std::env::var_os("HOME") {
+            assert!(default_path.starts_with(home_dir));
+        }
     }
 
     #[tokio::test]
