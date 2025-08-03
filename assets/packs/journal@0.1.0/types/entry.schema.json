@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "journal.entry",
+  "type": "object",
+  "title": "Journal Entry",
+  "description": "A completed journal entry with session transcript and AI analysis",
+  "properties": {
+    "session_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "UUID of the associated journal session"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["Morning", "Evening"],
+      "description": "The type of journal session"
+    },
+    "session_type": {
+      "type": "string",
+      "enum": ["morning", "evening"],
+      "description": "The session type (lowercase)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Title of the journal entry"
+    },
+    "mood": {
+      "type": ["string", "null"],
+      "description": "Detected mood from the session"
+    },
+    "energy": {
+      "type": ["string", "null"],
+      "description": "Detected energy level from the session"
+    }
+  },
+  "required": ["session_id", "mode", "session_type", "title"]
+}

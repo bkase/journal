@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "journal.session",
+  "type": "object",
+  "title": "Journal Session",
+  "description": "A journal session document tracking an interactive conversation",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": ["Morning", "Evening"],
+      "description": "The type of journal session"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "session_doc_id": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "description": "UUID of the session document"
+        },
+        "final_entry_id": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "description": "UUID of the final journal entry"
+        },
+        "completed_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Timestamp when the session was completed"
+        },
+        "custom_fields": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Additional custom metadata fields"
+        }
+      },
+      "required": []
+    },
+    "session_type": {
+      "type": "string",
+      "enum": ["morning", "evening"],
+      "description": "The session type (lowercase)"
+    }
+  },
+  "required": ["mode", "metadata", "session_type"]
+}
