@@ -42,7 +42,6 @@ pub enum Speaker {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionMetadata {
-    pub vault_path: String,
     pub session_doc_id: Option<Uuid>,
     pub final_entry_id: Option<Uuid>,
     pub completed_at: Option<DateTime<Utc>>,
@@ -98,12 +97,11 @@ impl SessionMode {
 }
 
 impl JournalSession {
-    pub fn new(mode: SessionMode, vault_path: String) -> Self {
+    pub fn new(mode: SessionMode) -> Self {
         Self {
             mode,
             transcript: Vec::new(),
             metadata: SessionMetadata {
-                vault_path,
                 session_doc_id: None,
                 final_entry_id: None,
                 completed_at: None,

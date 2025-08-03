@@ -17,12 +17,7 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
 
         // Mode selection
         (State::PromptingForNew, Action::SelectMode(mode)) => {
-            let vault_path = std::env::current_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .to_string_lossy()
-                .to_string();
-
-            let mut session = JournalSession::new(mode, vault_path);
+            let mut session = JournalSession::new(mode);
             let initial_questions = session.mode.get_initial_questions();
 
             session.add_entry(
@@ -196,8 +191,7 @@ mod tests {
 
     #[test]
     fn test_user_response() {
-        let vault_path = "/test/vault".to_string();
-        let mut session = JournalSession::new(SessionMode::Morning, vault_path);
+        let mut session = JournalSession::new(SessionMode::Morning);
         // Add the initial system message that would be added during mode selection
         session.add_entry(
             Speaker::System,
@@ -221,8 +215,7 @@ mod tests {
 
     #[test]
     fn test_stop_session() {
-        let vault_path = "/test/vault".to_string();
-        let session = JournalSession::new(SessionMode::Morning, vault_path);
+        let session = JournalSession::new(SessionMode::Morning);
         let initial_state = State::InSession(session.clone());
 
         let (new_state, effects) = update(initial_state, Action::Stop);
