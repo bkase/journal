@@ -1,39 +1,5 @@
 # Todos
 
-## 2. Implement View Layer
-
-**Priority:** Critical - Fixes Architecture  
-**Goal:** Separate presentation from business logic following Elm architecture.
-
-### Steps
-
-1. Create `view.rs` module with `fn view(state: &State)`
-2. Move all UI rendering logic to view functions:
-   - Welcome messages
-   - Prompts
-   - Session status
-   - Error displays
-3. Remove ALL `println!`/`eprintln!` from `effects.rs`
-4. Remove `Effect::Show...` variants
-5. Update main loop:
-
-   ```rust
-   let action = effects::execute(effect, &mut runner)?;
-   let (new_state, new_effect) = state::update(state, action);
-   view::view(&new_state);  // NEW
-   state = new_state;
-   effect = new_effect;
-   ```
-
-6. Convert show effects to proper state transitions
-
-### Testing Strategy
-
-- Ensure all UI elements still display correctly
-- Verify no presentation logic remains in effects.rs
-- Test all state transitions produce appropriate views
-- Verify error states display properly
-
 ## 3. Fix State Management
 
 **Priority:** Medium  
