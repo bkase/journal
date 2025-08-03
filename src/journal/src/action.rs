@@ -11,6 +11,10 @@ pub enum Action {
     NextQuestion,
     Stop,
     AnalysisComplete(String),
+    FinalEntryCreated {
+        entry_path: String,
+        analysis: String,
+    },
 }
 
 impl Action {}

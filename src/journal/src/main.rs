@@ -2,13 +2,14 @@ mod action;
 mod effects;
 mod state;
 mod update;
+mod view;
 
 use action::{Action, InputContext, UserInput};
 use anyhow::{Context, Result};
 use clap::{Arg, Command as ClapCommand};
 use effects::{Effect, EffectRunner};
 use state::State;
-use std::io::{self, Write};
+use std::io;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -38,11 +39,11 @@ async fn main() -> Result<()> {
             match app.find_active_session().await {
                 Ok(Some(session_id)) => Action::Resume(session_id),
                 Ok(None) => {
-                    println!("No active session found. Starting new session.");
+                    // No active session found, start new one
                     Action::Start
                 }
-                Err(e) => {
-                    eprintln!("Error finding active session: {e}. Starting new session.");
+                Err(_) => {
+                    // Error finding active session, start new one
                     Action::Start
                 }
             }
@@ -119,12 +120,10 @@ impl JournalApp {
     async fn new(vault_path: PathBuf) -> Result<Self> {
         // Initialize vault if it doesn't exist
         if !vault_path.join(".aethel").exists() {
-            println!("Initializing journal vault at {}...", vault_path.display());
             let effect_runner = EffectRunner::new(vault_path.clone());
             effect_runner
                 .run_effect(Effect::InitializeVault(vault_path.clone()))
                 .await?;
-            println!("Vault initialized successfully!");
         }
 
         Ok(Self {
@@ -188,9 +187,8 @@ impl JournalApp {
             }
         }
 
-        // Print final message if we're in an error state
-        if let State::Error(ref msg) = self.state {
-            eprintln!("Session ended with error: {msg}");
+        // Exit with error code if we're in an error state
+        if matches!(self.state, State::Error(_)) {
             std::process::exit(1);
         }
 
@@ -200,6 +198,9 @@ impl JournalApp {
     async fn process_action(&mut self, action: Action) -> Result<()> {
         let (new_state, effects) = update::update(self.state.clone(), action);
         self.state = new_state;
+
+        // Display the new state
+        view::view(&self.state);
 
         // Execute all effects
         for effect in effects {
@@ -211,12 +212,14 @@ impl JournalApp {
                         update::update(self.state.clone(), resulting_action);
                     self.state = next_state;
 
+                    // Display the updated state
+                    view::view(&self.state);
+
                     // Execute any additional effects
                     for next_effect in next_effects {
                         match self.effect_runner.run_effect(next_effect).await {
                             Ok(_) => {}
-                            Err(e) => {
-                                eprintln!("\n❌ Error executing effect: {e:#}");
+                            Err(_) => {
                                 // Continue with the session instead of crashing
                             }
                         }
@@ -226,11 +229,8 @@ impl JournalApp {
                     // Effect completed successfully without generating an action
                 }
                 Err(e) => {
-                    eprintln!("\n❌ Error executing effect: {e:#}");
-
                     // Special handling for analysis errors - provide fallback behavior
                     if matches!(effect_for_match, Effect::GenerateAnalysis { .. }) {
-                        eprintln!("🔄 Continuing without AI analysis...");
                         // Generate a fallback AnalysisComplete action with error message
                         let fallback_analysis = format!(
                             "**AI Analysis Unavailable**\n\n\
@@ -243,12 +243,15 @@ impl JournalApp {
                             update::update(self.state.clone(), fallback_action);
                         self.state = next_state;
 
+                        // Display the updated state
+                        view::view(&self.state);
+
                         // Execute any additional effects from the fallback
                         for next_effect in next_effects {
                             match self.effect_runner.run_effect(next_effect).await {
                                 Ok(_) => {}
-                                Err(e) => {
-                                    eprintln!("\n❌ Error in fallback effect: {e:#}");
+                                Err(_) => {
+                                    // Error in fallback effect, continue anyway
                                 }
                             }
                         }
@@ -261,9 +264,6 @@ impl JournalApp {
     }
 
     async fn get_user_input(&mut self) -> Result<String> {
-        print!("\n> ");
-        io::stdout().flush().context("Failed to flush stdout")?;
-
         let mut line = String::new();
         io::stdin()
             .read_line(&mut line)

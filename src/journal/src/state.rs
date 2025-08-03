@@ -9,6 +9,10 @@ pub enum State {
     PromptingForNew,
     InSession(JournalSession),
     Analyzing(JournalSession),
+    AnalysisReady {
+        session: JournalSession,
+        analysis: String,
+    },
     Done(WriteResult),
     Error(String),
 }
