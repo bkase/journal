@@ -4,6 +4,103 @@ use crate::error::Error;
 use crate::state::{JournalSession, SessionMode, Speaker, State, WriteResult};
 use uuid::Uuid;
 
+/// Create recovery actions and effects based on error type
+pub fn error_recovery(error: &Error, context: &State) -> (State, Vec<Effect>) {
+    match error {
+        Error::AiAnalysis(_) | Error::ClaudeExecution { .. } => {
+            // For AI errors, provide fallback analysis
+            let fallback_analysis = format!(
+                "**AI Analysis Unavailable**\n\n\
+                The AI analysis feature encountered an error and is currently unavailable. \
+                Your journal session has been saved successfully.\n\n\
+                Error details: {}", 
+                error
+            );
+            match context {
+                State::Analyzing(session) => {
+                    // Continue with fallback analysis
+                    (
+                        State::Analyzing(session.clone()),
+                        vec![
+                            Effect::ShowError(error.to_string()),
+                            Effect::ShowAnalysis(fallback_analysis),
+                        ],
+                    )
+                }
+                _ => {
+                    (
+                        State::Error(error.clone()),
+                        vec![Effect::ShowError(error.to_string())],
+                    )
+                }
+            }
+        }
+        Error::SessionNotFound { session_id } => {
+            (
+                State::PromptingForNew,
+                vec![
+                    Effect::ShowError(format!("Session {} not found", session_id)),
+                    Effect::ShowMessage("🔄 Starting a new session...".to_string()),
+                    Effect::ShowModePrompt,
+                ],
+            )
+        }
+        Error::VaultOperation { operation } => {
+            (
+                State::Error(error.clone()),
+                vec![
+                    Effect::ShowError(format!("Vault operation failed: {}", operation)),
+                    Effect::ShowMessage("💾 Please check file permissions and disk space.".to_string()),
+                ],
+            )
+        }
+        Error::InvalidSessionState { reason } => {
+            (
+                State::PromptingForNew,
+                vec![
+                    Effect::ShowError(format!("Session state error: {}", reason)),
+                    Effect::ShowMessage("🔄 Attempting to recover by starting fresh...".to_string()),
+                    Effect::ShowModePrompt,
+                ],
+            )
+        }
+        Error::Aethel { message } | Error::Io { message } | Error::Json { message } => {
+            (
+                State::Error(error.clone()),
+                vec![
+                    Effect::ShowError(format!("System error: {}", message)),
+                    Effect::ShowMessage("⚠️  This is a system-level error that may require attention.".to_string()),
+                ],
+            )
+        }
+        Error::Config(msg) => {
+            (
+                State::Error(error.clone()),
+                vec![
+                    Effect::ShowError(format!("Configuration error: {}", msg)),
+                    Effect::ShowMessage("⚙️  Please check your configuration settings.".to_string()),
+                ],
+            )
+        }
+        Error::UserInput(msg) => {
+            // User input errors are recoverable - stay in current state
+            (
+                context.clone(),
+                vec![
+                    Effect::ShowError(format!("Input error: {}", msg)),
+                    Effect::ShowMessage("💬 Please try entering your input again.".to_string()),
+                ],
+            )
+        }
+        Error::System(msg) => {
+            (
+                State::Error(error.clone()),
+                vec![Effect::ShowError(format!("System error: {}", msg))],
+            )
+        }
+    }
+}
+
 pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
     match (state, action) {
         // Starting a new journal session
@@ -136,11 +233,8 @@ pub fn update(state: State, action: Action) -> (State, Vec<Effect>) {
         // Invalid state transitions
         (state, action) => {
             let error_msg = format!("Invalid action {action:?} for state {state:?}");
-            let error = Error::invalid_session_state(error_msg.clone());
-            (
-                State::Error(error),
-                vec![Effect::ShowError(error_msg)],
-            )
+            let error = Error::invalid_session_state(error_msg);
+            error_recovery(&error, &state)
         }
     }
 }
